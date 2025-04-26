@@ -5,6 +5,8 @@
 #define va_end   __builtin_va_end
 #define va_arg   __builtin_va_arg
 
+#define PAGE_SIZE 4096
+
 typedef int bool;
 typedef unsigned char uint8_t;
 typedef unsigned short uint16_t;
