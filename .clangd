@@ -1,0 +1,4 @@
+Diagnostics:
+  Suppress: 
+    - incompatible-library-redeclaration
+    - asm_unknown_register_name
