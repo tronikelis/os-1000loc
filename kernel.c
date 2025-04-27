@@ -7,6 +7,109 @@ typedef uint32_t size_t;
 
 extern char __bss[], __bss_end[], __stack_top[], __free_ram[], __free_ram_end[];
 
+__attribute__((naked)) void switch_context(uint32_t *prev_sp,
+                                           uint32_t *next_sp) {
+    __asm__ __volatile__(
+        // Save callee-saved registers onto the current process's stack.
+        "addi sp, sp, -13 * 4\n" // Allocate stack space for 13 4-byte registers
+        "sw ra,  0  * 4(sp)\n"   // Save callee-saved registers only
+        "sw s0,  1  * 4(sp)\n"
+        "sw s1,  2  * 4(sp)\n"
+        "sw s2,  3  * 4(sp)\n"
+        "sw s3,  4  * 4(sp)\n"
+        "sw s4,  5  * 4(sp)\n"
+        "sw s5,  6  * 4(sp)\n"
+        "sw s6,  7  * 4(sp)\n"
+        "sw s7,  8  * 4(sp)\n"
+        "sw s8,  9  * 4(sp)\n"
+        "sw s9,  10 * 4(sp)\n"
+        "sw s10, 11 * 4(sp)\n"
+        "sw s11, 12 * 4(sp)\n"
+
+        // Switch the stack pointer.
+        "sw sp, (a0)\n"         // *prev_sp = sp;
+        "lw sp, (a1)\n"         // Switch stack pointer (sp) here
+
+        // Restore callee-saved registers from the next process's stack.
+        "lw ra,  0  * 4(sp)\n"  // Restore callee-saved registers only
+        "lw s0,  1  * 4(sp)\n"
+        "lw s1,  2  * 4(sp)\n"
+        "lw s2,  3  * 4(sp)\n"
+        "lw s3,  4  * 4(sp)\n"
+        "lw s4,  5  * 4(sp)\n"
+        "lw s5,  6  * 4(sp)\n"
+        "lw s6,  7  * 4(sp)\n"
+        "lw s7,  8  * 4(sp)\n"
+        "lw s8,  9  * 4(sp)\n"
+        "lw s9,  10 * 4(sp)\n"
+        "lw s10, 11 * 4(sp)\n"
+        "lw s11, 12 * 4(sp)\n"
+        "addi sp, sp, 13 * 4\n"  // We've popped 13 4-byte registers from the stack
+        "ret\n"
+    );
+}
+
+Process procs[PROCS_MAX];
+
+Process *create_process(uint32_t pc) {
+    Process *proc = NULL;
+    int i = 0;
+    for (; i < PROCS_MAX; i++) {
+        if (procs[i].state == PROC_UNUSED) {
+            proc = &procs[i];
+            break;
+        }
+    }
+
+    if (!proc) {
+        PANIC("max processes already running");
+    }
+
+    uint32_t *sp = &proc->stack[sizeof(proc->stack)];
+    *--sp = 0;                      // s11
+    *--sp = 0;                      // s10
+    *--sp = 0;                      // s9
+    *--sp = 0;                      // s8
+    *--sp = 0;                      // s7
+    *--sp = 0;                      // s6
+    *--sp = 0;                      // s5
+    *--sp = 0;                      // s4
+    *--sp = 0;                      // s3
+    *--sp = 0;                      // s2
+    *--sp = 0;                      // s1
+    *--sp = 0;                      // s0
+    // where the process will start executing when returning
+    *--sp = (uint32_t) pc;          // ra
+
+    proc->pid = i+1;
+    proc->state = PROC_RUNNABLE;
+    proc->sp = (uint32_t)sp;
+
+    return proc;
+}
+
+Process *default_process;
+Process *current_process;
+
+void yield() {
+    Process *next = default_process;
+    for (int i = 0; i < PROCS_MAX; i++) {
+        Process *process = &procs[(current_process->pid + i) % PROCS_MAX];
+        if (process->state == PROC_RUNNABLE && process->pid > 0) {
+            next = process;
+            break;
+        }
+    }
+
+    if (next == current_process) {
+        return;
+    }
+
+    Process *prev = current_process;
+    current_process = next;
+    switch_context(&prev->sp, &next->sp);
+}
+
 paddr_t alloc_pages(uint32_t n) {
     if (n == 0) {
         PANIC("allocating 0 pages");
@@ -126,18 +229,40 @@ void kernel_entry(void) {
     );
 }
 
+void delay(void) {
+    for (int i = 0; i < 30000000; i++)
+        __asm__ __volatile__("nop"); // do nothing
+}
+
+void process_a() {
+    for (;;) {
+        delay();
+        putchar('A');
+        yield();
+    }
+}
+
+void process_b() {
+    for (;;) {
+        delay();
+        putchar('B');
+        yield();
+    }
+}
+
 void kernel_main() {
 	memset(__bss, 0, (size_t)__bss_end - (size_t)__bss);
     WRITE_CSR(stvec, (uint32_t) kernel_entry);
 
-	printf("hello world OS: %x %d\n", 73453478, -223311);
+    default_process = create_process((uint32_t)NULL);
+    default_process->pid = 0;
+    current_process = default_process;
 
-    paddr_t paddr1 = alloc_pages(2);
-    paddr_t paddr2 = alloc_pages(1);
+    create_process((uint32_t)process_a);
+    create_process((uint32_t)process_b);
 
-    printf("paddr1 = %x, paddr2 = %x\n", paddr1, paddr2);
-
-    PANIC("booted");
+    yield();
+    PANIC("default process");
 
 	for (;;) {
 	}
@@ -161,4 +286,9 @@ void handle_trap(TrapFrame *f) {
 
     PANIC("unexpected trap scause=%x, stval=%x, sepc=%x\n", scause, stval, user_pc);
 }
+
+
+
+
+
 
