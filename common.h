@@ -22,6 +22,7 @@ typedef uint32_t vaddr_t;
 #define align_up(value, align)   __builtin_align_up(value, align)
 #define is_aligned(value, align) __builtin_is_aligned(value, align)
 #define offsetof(type, member)   __builtin_offsetof(type, member)
+#define SYS_PUTCHAR 1
 
 void *memset(void *buf, char c, size_t n);
 void *memcpy(void *dst, void *src, size_t n);
