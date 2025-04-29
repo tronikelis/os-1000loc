@@ -155,8 +155,8 @@ __attribute__((naked))
 __attribute__((aligned(4)))
 void kernel_entry(void) {
     __asm__ __volatile__(
-        "csrw sscratch, sp\n"
-        "addi sp, sp, -4 * 31\n"
+        "csrw sscratch, sp\n" // sscratch = sp
+        "addi sp, sp, -4 * 31\n" // sp -= 31
         "sw ra,  4 * 0(sp)\n"
         "sw gp,  4 * 1(sp)\n"
         "sw tp,  4 * 2(sp)\n"
@@ -188,10 +188,8 @@ void kernel_entry(void) {
         "sw s10, 4 * 28(sp)\n"
         "sw s11, 4 * 29(sp)\n"
 
-        "csrr a0, sscratch\n"
-        "sw a0, 4 * 30(sp)\n"
-
-        "mv a0, sp\n"
+        "csrr a0, sscratch\n" // a0 = sscratch (sp)
+        "sw a0, 4 * 30(sp)\n" // sp[30] = a0, because we can't use sscracth for sw
         "call handle_trap\n"
 
         "lw ra,  4 * 0(sp)\n"
@@ -268,7 +266,7 @@ void kernel_main() {
 	}
 }
 
-__attribute__((section(".text.boot"))) __attribute__((naked)) 
+__attribute__((section(".text.boot"))) __attribute__((naked))
 void boot(void) {
 	__asm__ __volatile__(
 			"mv sp, %[stack_top]\n" // Set the stack pointer
