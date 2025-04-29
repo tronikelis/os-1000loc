@@ -105,6 +105,12 @@ void yield() {
         return;
     }
 
+    __asm__ __volatile__(
+        "csrw sscratch, %[sscratch]\n"
+        :
+        : [sscratch] "r" ((uint32_t) &next->stack[sizeof(next->stack)])
+    );
+
     Process *prev = current_process;
     current_process = next;
     switch_context(&prev->sp, &next->sp);
@@ -155,7 +161,9 @@ __attribute__((naked))
 __attribute__((aligned(4)))
 void kernel_entry(void) {
     __asm__ __volatile__(
-        "csrw sscratch, sp\n" // sscratch = sp
+        // Retrieve the kernel stack of the running process from sscratch.
+        "csrrw sp, sscratch, sp\n" // sscrach <=> sp
+
         "addi sp, sp, -4 * 31\n" // sp -= 31
         "sw ra,  4 * 0(sp)\n"
         "sw gp,  4 * 1(sp)\n"
@@ -188,8 +196,15 @@ void kernel_entry(void) {
         "sw s10, 4 * 28(sp)\n"
         "sw s11, 4 * 29(sp)\n"
 
-        "csrr a0, sscratch\n" // a0 = sscratch (sp)
+        // Retrieve and save the sp at the time of exception.
+        "csrr a0, sscratch\n" // a0 = sscratch 
         "sw a0, 4 * 30(sp)\n" // sp[30] = a0, because we can't use sscracth for sw
+
+        // Reset the kernel stack.
+        "addi a0, sp, 4 * 31\n"
+        "csrw sscratch, a0\n"
+
+        "mv a0, sp\n"
         "call handle_trap\n"
 
         "lw ra,  4 * 0(sp)\n"
