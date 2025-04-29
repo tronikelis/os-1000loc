@@ -211,6 +211,11 @@ SbiRet sbi_call(long arg0, long arg1, long arg2, long arg3, long arg4,
 	return (SbiRet){.error = a0, .value = a1};
 }
 
+long getchar() {
+    SbiRet ret = sbi_call(0, 0, 0, 0, 0, 0, 0, 2);
+    return ret.error;
+}
+
 void putchar(char ch) {
 	sbi_call(ch, 0, 0, 0, 0, 0, 0, 1 /* Console Putchar */);
 }
@@ -337,6 +342,23 @@ void handle_syscall(TrapFrame *f) {
     switch (f->a3) {
         case SYS_PUTCHAR:
             putchar(f->a0);
+            break;
+        case SYS_GETCHAR:
+            while (1) {
+                long ch = getchar();
+                if (ch >= 0) {
+                    f->a0 = ch;
+                    break;
+                }
+
+                yield();
+            }
+            break;
+        case SYS_EXIT:
+            printf("process %d exited\n", current_process->pid);
+            current_process->state = PROC_EXITED;
+            yield();
+            PANIC("unreachable");
             break;
         default:
             PANIC("unknown syscall a3=%x\n", f->a3);

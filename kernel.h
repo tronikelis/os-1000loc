@@ -64,6 +64,7 @@ typedef struct __attribute__((packed)) {
 #define PROCS_MAX 8
 #define PROC_UNUSED 0
 #define PROC_RUNNABLE 1
+#define PROC_EXITED 2
 
 typedef struct {
     int pid;
